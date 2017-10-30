@@ -1,6 +1,9 @@
 #ifndef STC3115_DRIVER_COMPONENT_H
 #define STC3115_DRIVER_COMPONENT_H
 
+#include <stdint.h>
+#include <Wire.h>
+
 class STC3115I2C {
 public:
     STC3115I2C(uint8_t address);

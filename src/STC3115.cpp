@@ -63,7 +63,7 @@ bool STC3115I2C::readRegisterRegion(uint8_t* output, uint_t reg, uint8_t length)
 bool STC3115I2C::readRegisterInt16(int16_t* output, uint8_t reg) {
     uint8_t buffer[2] = {0};
     bool status = readRegisterRegion(buffer, reg, 2);
-    *output = (int16_t)buffer[0] | (int16_t)buffer[1] << 8;
+    *output = static_cast<int16_t>(buffer[0]) | static_cast<int16_t>(buffer[1]) << 8;
 
     return status;
 }
