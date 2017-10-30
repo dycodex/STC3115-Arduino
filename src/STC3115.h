@@ -19,4 +19,15 @@ protected:
     uint8_t address;
 };
 
+class STC3315 : public STC3115I2CCore {
+public:
+    STC3315(uint8_t address);
+    ~STC3315();
+
+    bool begin(uint8_t vmode = 0);
+    int8_t getTemperature();
+    float getVoltage();
+    float getCurrent();
+};
+
 #endif

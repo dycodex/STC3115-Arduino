@@ -80,3 +80,57 @@ bool STC3115I2CCore::writeRegister(uint8_t reg, uint8_t data) {
 
     return returnValue;
 }
+
+/**
+ * STC3315 I2C interface class
+ */
+STC3315::STC3315(uint8_t address):
+STC3315I2CCore(address), address(address) {
+}
+
+STC3315::~STC3315() {}
+
+bool STC3315::begin(uint8_t vmode) {
+    uint8_t usedVmode = (vmode > 1) ? 0 : vmode;
+    // VMODE = 0 (mixed mode)
+    // CLR_VM_ADJ = 0
+    // CLR_CC_ADJ = 0
+    // ALRM_ENA = 1 (enable alarm)
+    // GG_RUN = 0
+    // FORCE_CC = 0
+    // FORCE_VM = 0
+    uint8_t mode = usedVmode | 1 << 4;
+
+    if (!beginI2C()) {
+        return false;
+    }
+
+    return writeRegister(STC3315_REG_MODE, mode);
+}
+
+int8_t STC3315::getTemperature() {
+    uint8_t temp = 0;
+    if (!readRegister(&temp, STC3315_REG_TEMPERATURE)) {
+        return 0;
+    }
+
+    return static_cast<int8_t>(temp);
+}
+
+float STC3315::getVoltage() {
+    uint8_t voltage = 0;
+    if (!readRegister(&voltage, STC3315_REG_VOLTAGE_L)) {
+        return 0.0;
+    }
+
+    return static_cast<float>(voltage) / 2.2; // millivolt
+}
+
+float STC3115::getCurrent() {
+    uint8_t current = 0;
+    if (!readRegister(&current, STC3315_REG_CURRENT_L)) {
+        return 0.0;
+    }
+
+    return static_cast<float>(current) / 5.88 ; // microvolt
+}
