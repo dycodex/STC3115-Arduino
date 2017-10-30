@@ -1,14 +1,14 @@
 #include "STC3115.h"
 
-STC3115I2C::STC3115I2C(uint8_t address):
+STC3115I2CCore::STC3115I2CCore(uint8_t address):
 address(address) {
 
 }
 
-STC3115I2C::~STC3115I2C() {
+STC3115I2CCore::~STC3115I2CCore() {
 }
 
-bool STC3115I2C::beginI2C() {
+bool STC3115I2CCore::beginI2C() {
     bool result = true;
     Wire.beginTransmission(address);
 
@@ -17,7 +17,7 @@ bool STC3115I2C::beginI2C() {
     return result;
 }
 
-bool STC3115I2C::readRegister(uint8_t* output, uint8_t reg) {
+bool STC3115I2CCore::readRegister(uint8_t* output, uint8_t reg) {
     uint8_t result = 0;
     uint8_t numBytes = 1;
     bool returnValue = true;
@@ -38,7 +38,7 @@ bool STC3115I2C::readRegister(uint8_t* output, uint8_t reg) {
     return returnValue;
 }
 
-bool STC3115I2C::readRegisterRegion(uint8_t* output, uint_t reg, uint8_t length) {
+bool STC3115I2CCore::readRegisterRegion(uint8_t* output, uint_t reg, uint8_t length) {
     bool returnValue = true;
     uint8_t counter = 0;
     uint8_t temp = 0;
@@ -60,7 +60,7 @@ bool STC3115I2C::readRegisterRegion(uint8_t* output, uint_t reg, uint8_t length)
     return returnValue;
 }
 
-bool STC3115I2C::readRegisterInt16(int16_t* output, uint8_t reg) {
+bool STC3115I2CCore::readRegisterInt16(int16_t* output, uint8_t reg) {
     uint8_t buffer[2] = {0};
     bool status = readRegisterRegion(buffer, reg, 2);
     *output = static_cast<int16_t>(buffer[0]) | static_cast<int16_t>(buffer[1]) << 8;
@@ -68,7 +68,7 @@ bool STC3115I2C::readRegisterInt16(int16_t* output, uint8_t reg) {
     return status;
 }
 
-bool STC3115I2C::writeRegister(uint8_t reg, uint8_t data) {
+bool STC3115I2CCore::writeRegister(uint8_t reg, uint8_t data) {
     bool returnValue = true;
 
     Wire.beginTransmission(address);

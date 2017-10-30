@@ -4,10 +4,10 @@
 #include <stdint.h>
 #include <Wire.h>
 
-class STC3115I2C {
+class STC3115I2CCore {
 public:
-    STC3115I2C(uint8_t address);
-    ~STC3115I2C();
+    STC3115I2CCore(uint8_t address);
+    ~STC3115I2CCore();
 
     bool beginI2C();
     bool readRegister(uint8_t* output, uint8_t reg);
