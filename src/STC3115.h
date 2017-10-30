@@ -3,6 +3,7 @@
 
 #include <stdint.h>
 #include <Wire.h>
+#include "STC3315_registers.h"
 
 class STC3115I2CCore {
 public:
