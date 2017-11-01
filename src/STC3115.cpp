@@ -1,4 +1,5 @@
 #include "STC3115.h"
+#include <Arduino.h>
 
 STC3115I2CCore::STC3115I2CCore(uint8_t address):
 address(address) {
@@ -9,6 +10,8 @@ STC3115I2CCore::~STC3115I2CCore() {
 }
 
 bool STC3115I2CCore::beginI2C() {
+    Wire.begin();
+
     bool result = true;
     Wire.beginTransmission(address);
 
@@ -38,7 +41,7 @@ bool STC3115I2CCore::readRegister(uint8_t* output, uint8_t reg) {
     return returnValue;
 }
 
-bool STC3115I2CCore::readRegisterRegion(uint8_t* output, uint_t reg, uint8_t length) {
+bool STC3115I2CCore::readRegisterRegion(uint8_t* output, uint8_t reg, uint8_t length) {
     bool returnValue = true;
     uint8_t counter = 0;
     uint8_t temp = 0;
@@ -74,7 +77,7 @@ bool STC3115I2CCore::writeRegister(uint8_t reg, uint8_t data) {
     Wire.beginTransmission(address);
     Wire.write(reg);
     Wire.write(data);
-    if (Wire.endTransmission != 0) {
+    if (Wire.endTransmission() != 0) {
         returnValue = false;
     }
 
@@ -82,15 +85,15 @@ bool STC3115I2CCore::writeRegister(uint8_t reg, uint8_t data) {
 }
 
 /**
- * STC3315 I2C interface class
+ * STC3115 I2C interface class
  */
-STC3315::STC3315(uint8_t address):
-STC3315I2CCore(address), address(address) {
+STC3115::STC3115(uint8_t address):
+STC3115I2CCore(address) {
 }
 
-STC3315::~STC3315() {}
+STC3115::~STC3115() {}
 
-bool STC3315::begin(uint8_t vmode) {
+bool STC3115::begin(uint8_t vmode) {
     uint8_t usedVmode = (vmode > 1) ? 0 : vmode;
     // VMODE = 0 (mixed mode)
     // CLR_VM_ADJ = 0
@@ -99,38 +102,41 @@ bool STC3315::begin(uint8_t vmode) {
     // GG_RUN = 0
     // FORCE_CC = 0
     // FORCE_VM = 0
-    uint8_t mode = usedVmode | 1 << 4;
+    uint8_t mode = usedVmode | 1 << 3;
+    Serial.print("[init] REG_MODE value: ");
+    Serial.println(mode);
 
     if (!beginI2C()) {
+        Serial.println("[init] Failed initializing I2C");
         return false;
     }
 
-    return writeRegister(STC3315_REG_MODE, mode);
+    return writeRegister(STC3115_REG_MODE, mode);
 }
 
-int8_t STC3315::getTemperature() {
+int8_t STC3115::getTemperature() {
     uint8_t temp = 0;
-    if (!readRegister(&temp, STC3315_REG_TEMPERATURE)) {
+    if (!readRegister(&temp, STC3115_REG_TEMPERATURE)) {
         return 0;
     }
 
     return static_cast<int8_t>(temp);
 }
 
-float STC3315::getVoltage() {
+float STC3115::getVoltage() {
     uint8_t voltage = 0;
-    if (!readRegister(&voltage, STC3315_REG_VOLTAGE_L)) {
+    if (!readRegister(&voltage, STC3115_REG_VOLTAGE_L)) {
         return 0.0;
     }
 
-    return static_cast<float>(voltage) / 2.2; // millivolt
+    return static_cast<float>(voltage); // / 2.2; // millivolt
 }
 
 float STC3115::getCurrent() {
     uint8_t current = 0;
-    if (!readRegister(&current, STC3315_REG_CURRENT_L)) {
+    if (!readRegister(&current, STC3115_REG_CURRENT_L)) {
         return 0.0;
     }
 
-    return static_cast<float>(current) / 5.88 ; // microvolt
+    return static_cast<float>(current); // / 5.88 ; // microvolt
 }

@@ -3,11 +3,11 @@
 
 #include <stdint.h>
 #include <Wire.h>
-#include "STC3315_registers.h"
+#include "STC3115_registers.h"
 
 class STC3115I2CCore {
 public:
-    STC3115I2CCore(uint8_t address);
+    STC3115I2CCore(uint8_t address = 0x70);
     ~STC3115I2CCore();
 
     bool beginI2C();
@@ -19,10 +19,10 @@ protected:
     uint8_t address;
 };
 
-class STC3315 : public STC3115I2CCore {
+class STC3115 : public STC3115I2CCore {
 public:
-    STC3315(uint8_t address);
-    ~STC3315();
+    STC3115(uint8_t address = 0x70);
+    ~STC3115();
 
     bool begin(uint8_t vmode = 0);
     int8_t getTemperature();
