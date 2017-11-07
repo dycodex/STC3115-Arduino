@@ -9,25 +9,196 @@ STC3115::STC3115(uint8_t address): STC3115I2CCore(address) {
 
 STC3115::~STC3115() {}
 
-bool STC3115::begin(uint8_t vmode) {
-    uint8_t usedVmode = 0;
-    // VMODE = 0 (mixed mode)
-    // CLR_VM_ADJ = 0
-    // CLR_CC_ADJ = 0
-    // ALRM_ENA = 1 (enable alarm)
-    // GG_RUN = 0
-    // FORCE_CC = 0
-    // FORCE_VM = 0
-    uint8_t mode = usedVmode | 1 << 3;
-    Serial.print("[init] REG_MODE value: ");
-    Serial.println(mode);
+bool STC3115::begin() {
+    bool retval = true;
+    initConfig();
 
-    if (!beginI2C()) {
-        Serial.println("[init] Failed initializing I2C");
+    // TODO: handle read RAM data failure
+    readRAMData();
+
+    if (ramData.reg.TestWord != RAM_TESTWORD || calculateCRC8RAM(ramData.db, STC3115_RAM_SIZE) != 0) {
+        // handle invalid RAM data
+        initRAM();
+        retval = startup();
+    } else {
+        uint8_t data;
+        readRegister(&data, STC3115_REG_CTRL);
+
+        if (data & (STC3115_BATFAIL | STC3115_PORDET) != 0) {
+            retval = startup();
+        } else {
+            retval = restore();
+        }
+    }
+
+    ramData.reg.State = STC3115_INIT;
+    updateRAMCRC8();
+    writeRAMData();
+
+    return retval;
+}
+
+int STC3115::getChipID() {
+    uint8_t res = 0;
+    readRegister(&res, STC3115_REG_ID);
+
+    return static_cast<int>(res);
+}
+
+void STC3115::initRAM() {
+    for (int i = 0; i < STC3115_RAM_SIZE; i++) {
+        ramData.db[i] = 0;
+    }
+
+    ramData.reg.TestWord = RAM_TESTWORD;
+    ramData.reg.CCConf = config.CCConf;
+    ramData.reg.VMConf = config.VMConf;
+
+    updateRAMCRC8();
+}
+
+bool STC3115::readRAMData() {
+    bool readResult = readRegisterRegion(ramData.db, STC3115_REG_RAM0, STC3115_RAM_SIZE);
+    return readResult;
+}
+
+int STC3115::updateRAMCRC8() {
+    int result = calculateCRC8RAM(ramData.db, STC3115_RAM_SIZE - 1);
+    ramData.db[STC3115_RAM_SIZE - 1] = result;
+
+    return result;
+}
+
+int STC3115::calculateCRC8RAM(uint8_t* data, size_t length) {
+    int crc = 0;
+
+    for (int i = 0; i < length; i++) {
+        crc ^= data[i];
+
+        for (int j = 0; j < 8; j++) {
+            crc <<= 1;
+            if (crc & 0x100) {
+                crc ^= 7;
+            }
+        }
+    }
+
+    return (crc & 255);
+}
+
+bool STC3115::writeRAMData() {
+    return writeRegister(STC3115_REG_RAM0, ramData.db, STC3115_RAM_SIZE);
+}
+
+void STC3115::initConfig() {
+    config.VMode = VMODE;
+    if (RSENSE != 0) {
+        config.RSense = RSENSE;
+    } else {
+        config.RSense = 10;
+    }
+
+    config.CCConf = (BATT_CAPACITY * config.RSense * 250 + 6194) / 12389;
+
+    if (BATT_RINT != 0) {
+        config.VMConf = (BATT_CAPACITY * BATT_RINT * 50 + 24444) / 48889;
+    } else {
+        config.VMConf = (BATT_CAPACITY * 200 * 50 + 24444) / 488889;
+    }
+
+    for (int i = 0; i < 16; i++) {
+       config.OCVOffset[i] = 0;
+    }
+
+    config.CNom = BATT_CAPACITY;
+    config.RelaxCurrent = BATT_CAPACITY / 20;
+    config.AlmSOC = ALM_SOC;
+    config.AlmVbat = ALM_VBAT;
+
+    batteryData.Presence = 1;
+}
+
+int STC3115::getStatus() {
+    int value = 0;
+    uint8_t data[2] = {0};
+
+    if (getChipID() != STC3115_ID) {
+        return -1;
+    }
+
+    readRegisterRegion(data, STC3115_REG_MODE, 2);
+    value = data[0] | (data[1] << 8);
+    value &= 0x7fff;
+
+    return value;
+}
+
+void STC3115::setParamAndRun() {
+    writeRegister(STC3115_REG_MODE, STC3115_REGMODE_DEFAULT_STANDBY);
+
+    writeRegister(STC3115_REG_OCVTAB0, config.OCVOffset, STC3115_OCVTAB_SIZE);
+
+    if (config.AlmSOC != 0) {
+        writeRegister(STC3115_REG_ALARM_SOC, config.AlmSOC * 2);
+    }
+
+    if (config.AlmVbat != 0) {
+        int value = static_cast<long>(config.AlmVbat << 9) / VoltageFactor;
+        writeRegister(STC3115_REG_ALARM_VOLTAGE, static_cast<uint8_t>(value));
+    }
+
+    if (config.RSense != 0) {
+        int value = static_cast<long>(config.RelaxCurrent << 9) / (CurrentFactor / config.RSense);
+        writeRegister(STC3115_REG_CURRENT_THRES, static_cast<uint8_t>(value));
+    }
+
+    if (ramData.reg.CCConf != 0) {
+        writeRegisterInt(STC3115_REG_CC_CNF_L, ramData.reg.CCConf);
+    }
+
+    if (ramData.reg.VMConf != 0) {
+        writeRegisterInt(STC3115_REG_VM_CNF_L, ramData.reg.VMConf);
+    }
+
+    writeRegister(STC3115_REG_CTRL, 0x03);
+    writeRegister(STC3115_REG_MODE, STC3115_GG_RUN | (STC3115_VMODE * config.VMode) | (STC3115_ALM_ENA * ALM_EN));
+}
+
+bool STC3115::startup() {
+    int HRSOC;
+    int ocv, ocvMin;
+    int OCVOffset[16] = {0};
+
+    if (getStatus() < 0) {
         return false;
     }
 
-    return writeRegister(STC3115_REG_MODE, mode);
+    uint8_t registerDataWord[2] = {0};
+    readRegisterRegion(registerDataWord, STC3115_REG_OCV_L, 2);
+    ocv = registerDataWord[0] | (registerDataWord[1] << 8);
+
+    ocvMin = 6000 + OCVOffset[0];
+    if (ocv < ocvMin) {
+        HRSOC = 0;
+        writeRegisterInt(STC3115_REG_SOC_L, HRSOC);
+        setParamAndRun();
+    } else {
+        setParamAndRun();
+        writeRegisterInt(STC3115_REG_OCV_L, ocv);
+    }
+
+    return true;
+}
+
+bool STC3115::restore() {
+    if (getStatus() < 0) {
+        return false;
+    }
+
+    setParamAndRun();
+    writeRegisterInt(STC3115_REG_SOC_L, ramData.reg.HRSOC);
+
+    return true;
 }
 
 int8_t STC3115::getTemperature() {
@@ -45,7 +216,7 @@ float STC3115::getVoltage() {
         return 0.0;
     }
 
-    return static_cast<float>(voltage); // / 2.2; // millivolt
+    return static_cast<float>(voltage);
 }
 
 float STC3115::getCurrent() {
@@ -54,5 +225,5 @@ float STC3115::getCurrent() {
         return 0.0;
     }
 
-    return static_cast<float>(current); // / 5.88 ; // microvolt
+    return static_cast<float>(current);
 }
