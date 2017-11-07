@@ -1,0 +1,18 @@
+{
+  "name": "STC3115 Arduino",
+  "version": "0.1.0-rc",
+  "platforms": "espressif32",
+  "keywords": "stc3115,battery,gauge",
+  "description": "Library for utilizing STC3115",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/dycodex/STC3115-Arduino.git"
+  },
+  "authors": [
+    {
+      "name": "Alwin Arrasyid",
+      "email": "alwin.ridd@gmail.com",
+      "maintainer": true
+    }
+  ]
+}
