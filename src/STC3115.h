@@ -24,14 +24,18 @@ public:
     virtual ~STC3115();
 
     bool begin();
-    int8_t getTemperature();
-    float getVoltage();
-    float getCurrent();
+    int getTemperature();
+    int getVoltage();
+    int getCurrent();
     int getChipID();
     int getStatus();
 
     void enableDebugging(Stream* stream = NULL);
     void disableDebugging();
+
+    int getRunningCounter();
+    bool readBatteryData();
+    static int convert(short value, unsigned short factor);
 
     STC3115ConfigData config;
 protected:

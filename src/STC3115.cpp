@@ -285,13 +285,12 @@ bool STC3115::restore() {
  *
  * @return int8_t
  */
-int8_t STC3115::getTemperature() {
-    uint8_t temp = 0;
-    if (!readRegister(&temp, STC3115_REG_TEMPERATURE)) {
-        return 0;
+int STC3115::getTemperature() {
+    if (batteryData.Temperature == 0) {
+        readBatteryData();
     }
 
-    return static_cast<int8_t>(temp);
+    return batteryData.Temperature;
 }
 
 /**
@@ -299,13 +298,12 @@ int8_t STC3115::getTemperature() {
  *
  * @return float
  */
-float STC3115::getVoltage() {
-    uint8_t voltage = 0;
-    if (!readRegister(&voltage, STC3115_REG_VOLTAGE_L)) {
-        return 0.0;
+int STC3115::getVoltage() {
+   if (batteryData.Voltage == 0) {
+        readBatteryData();
     }
 
-    return static_cast<float>(voltage);
+    return batteryData.Voltage;
 }
 
 /**
@@ -313,13 +311,99 @@ float STC3115::getVoltage() {
  *
  * @return float
  */
-float STC3115::getCurrent() {
-    uint8_t current = 0;
-    if (!readRegister(&current, STC3115_REG_CURRENT_L)) {
-        return 0.0;
+int STC3115::getCurrent() {
+    if (batteryData.Current == 0) {
+        readBatteryData();
     }
 
-    return static_cast<float>(current);
+    return batteryData.Current;
+}
+
+/**
+ * @brief Get the STC3115 conversion counter value
+ *
+ * @return int conversion counter
+ */
+int STC3115::getRunningCounter() {
+    int data;
+    if (!readRegisterInt(&data, STC3115_REG_COUNTER_L)) {
+        return -1;
+    }
+
+    return data;
+}
+
+
+/**
+ * @brief Read battery measurement data in one go.
+ *
+ * @return true
+ * @return false
+ */
+bool STC3115::readBatteryData() {
+    uint8_t data[16];
+    bool retVal = true;
+    int value;
+
+    retVal = readRegisterRegion(data, 0, 16);
+    if (!retVal) {
+        return retVal;
+    }
+
+    value = data[3];
+    value = (value << 8) + data[2];
+    batteryData.HRSOC = value;
+    batteryData.SOC = (value * 10 + 256) / 512;
+
+    value = data[5];
+    value = (value << 8) + data[4];
+    batteryData.ConvCounter = value;
+
+    value = data[7];
+    value = (value << 8) + data[6];
+    if (value >= 0x2000) {
+        value = value - 0x4000;
+    }
+    batteryData.Current = convert(value, CurrentFactor / RSENSE);
+
+    value = data[9];
+    value = (value << 8) + data[8];
+    if (value >= 0x0800) {
+        value = value - 0x1000;
+    }
+    batteryData.Voltage = convert(value, VoltageFactor);
+
+    value = data[10];
+    if (value >= 0x80) {
+        value = value - 0x100;
+    }
+    batteryData.Temperature = value * 10;
+
+    value = data[14];
+    value = (value << 8) | data[13];
+    value = value & 0x3fff;
+    if (value >= 0x02000) {
+        value = value - 0x4000;
+    }
+    value = convert(value, VoltageFactor);
+    value = (value + 2) / 4;
+    batteryData.OCV = value;
+
+    return true;
+}
+
+/**
+ * @brief Convert measurement data with given factor
+ *
+ * @param value value to be converted
+ * @param factor conversion factor
+ * @return int
+ */
+int STC3115::convert(short value, unsigned short factor) {
+    int v = (static_cast<long>(value) * factor) >> 11;
+    v = (v + 1) / 2;
+
+    return v;
 }
 
 void STC3115::enableDebugging(Stream* stream) {
@@ -331,3 +415,5 @@ void STC3115::disableDebugging() {
     this->debugEnabled = false;
     this->debugStream = NULL;
 }
+
+
