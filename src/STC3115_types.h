@@ -4,6 +4,10 @@
 #include <stdint.h>
 #include "STC3115_constants.h"
 
+/**
+ * @brief STC3115 configuration structure
+ *
+ */
 typedef struct {
     int VMode;
     int AlmSOC;
@@ -16,6 +20,10 @@ typedef struct {
     uint8_t OCVOffset[16];
 } STC3115ConfigData;
 
+/**
+ * @brief STC3115 battery measurement data structure
+ *
+ */
 typedef struct {
     int StatusWord;
     int HRSOC;
@@ -30,6 +38,10 @@ typedef struct {
     int RemTime;
 } STC3115BatteryData;
 
+/**
+ * @brief STC3115 RAM data internal structure
+ *
+ */
 typedef union {
     uint8_t db[STC3115_RAM_SIZE];
     struct {

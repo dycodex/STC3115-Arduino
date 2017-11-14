@@ -2,13 +2,21 @@
 #include <Arduino.h>
 
 /**
- * STC3115 I2C interface class
+ * @brief Initialize STC3115 I2C driver with given address
+ *
+ * @param address
  */
 STC3115::STC3115(uint8_t address): STC3115I2CCore(address) {
 }
 
 STC3115::~STC3115() {}
 
+/**
+ * @brief Configure STC3115
+ *
+ * @return true when the STC3115 is configured successfully
+ * @return false when STC3115 is failed to be configured
+ */
 bool STC3115::begin() {
     bool retval = true;
     initConfig();
@@ -38,6 +46,11 @@ bool STC3115::begin() {
     return retval;
 }
 
+/**
+ * @brief Get the chip ID from STC3115
+ *
+ * @return int chip ID of the STC3115
+ */
 int STC3115::getChipID() {
     uint8_t res = 0;
     readRegister(&res, STC3115_REG_ID);
@@ -45,6 +58,10 @@ int STC3115::getChipID() {
     return static_cast<int>(res);
 }
 
+/**
+ * @brief Initialize STC3115 RAM data
+ *
+ */
 void STC3115::initRAM() {
     for (int i = 0; i < STC3115_RAM_SIZE; i++) {
         ramData.db[i] = 0;
@@ -57,11 +74,22 @@ void STC3115::initRAM() {
     updateRAMCRC8();
 }
 
+/**
+ * @brief Read STC3115 RAM data and store it to an internal structure
+ *
+ * @return true
+ * @return false
+ */
 bool STC3115::readRAMData() {
     bool readResult = readRegisterRegion(ramData.db, STC3115_REG_RAM0, STC3115_RAM_SIZE);
     return readResult;
 }
 
+/**
+ * @brief Update STC3115 RAM CRC8 value
+ *
+ * @return int RAM CRC8
+ */
 int STC3115::updateRAMCRC8() {
     int result = calculateCRC8RAM(ramData.db, STC3115_RAM_SIZE - 1);
     ramData.db[STC3115_RAM_SIZE - 1] = result;
@@ -69,6 +97,13 @@ int STC3115::updateRAMCRC8() {
     return result;
 }
 
+/**
+ * @brief Calculate the CRC8 of a buffer.
+ *
+ * @param data pointer to array of uint8_t
+ * @param length length of the array
+ * @return int CRC8 of the data
+ */
 int STC3115::calculateCRC8RAM(uint8_t* data, size_t length) {
     int crc = 0;
 
@@ -86,10 +121,20 @@ int STC3115::calculateCRC8RAM(uint8_t* data, size_t length) {
     return (crc & 255);
 }
 
+/**
+ * @brief Write data from internal structure to STC3115 RAM
+ *
+ * @return true
+ * @return false
+ */
 bool STC3115::writeRAMData() {
     return writeRegister(STC3115_REG_RAM0, ramData.db, STC3115_RAM_SIZE);
 }
 
+/**
+ * @brief Initialize STC3115 config default values
+ *
+ */
 void STC3115::initConfig() {
     config.VMode = VMODE;
     if (RSENSE != 0) {
@@ -118,6 +163,11 @@ void STC3115::initConfig() {
     batteryData.Presence = 1;
 }
 
+/**
+ * @brief Get STC3115 status
+ *
+ * @return int
+ */
 int STC3115::getStatus() {
     int value = 0;
     uint8_t data[2] = {0};
@@ -133,6 +183,10 @@ int STC3115::getStatus() {
     return value;
 }
 
+/**
+ * @brief Write configuration to STC3115 registers
+ *
+ */
 void STC3115::setParamAndRun() {
     writeRegister(STC3115_REG_MODE, STC3115_REGMODE_DEFAULT_STANDBY);
 
@@ -164,6 +218,12 @@ void STC3115::setParamAndRun() {
     writeRegister(STC3115_REG_MODE, STC3115_GG_RUN | (STC3115_VMODE * config.VMode) | (STC3115_ALM_ENA * ALM_EN));
 }
 
+/**
+ * @brief Write SOC data to STC3115 and run
+ *
+ * @return true
+ * @return false
+ */
 bool STC3115::startup() {
     int HRSOC;
     int ocv, ocvMin;
@@ -190,6 +250,12 @@ bool STC3115::startup() {
     return true;
 }
 
+/**
+ * @brief Restore SOC value from RAM and run
+ *
+ * @return true
+ * @return false
+ */
 bool STC3115::restore() {
     if (getStatus() < 0) {
         return false;
@@ -201,6 +267,11 @@ bool STC3115::restore() {
     return true;
 }
 
+/**
+ * @brief Get temperature of the battery
+ *
+ * @return int8_t
+ */
 int8_t STC3115::getTemperature() {
     uint8_t temp = 0;
     if (!readRegister(&temp, STC3115_REG_TEMPERATURE)) {
@@ -210,6 +281,11 @@ int8_t STC3115::getTemperature() {
     return static_cast<int8_t>(temp);
 }
 
+/**
+ * @brief Get battery voltage
+ *
+ * @return float
+ */
 float STC3115::getVoltage() {
     uint8_t voltage = 0;
     if (!readRegister(&voltage, STC3115_REG_VOLTAGE_L)) {
@@ -219,6 +295,11 @@ float STC3115::getVoltage() {
     return static_cast<float>(voltage);
 }
 
+/**
+ * @brief Get battery current
+ *
+ * @return float
+ */
 float STC3115::getCurrent() {
     uint8_t current = 0;
     if (!readRegister(&current, STC3115_REG_CURRENT_L)) {

@@ -19,6 +19,7 @@
 
 class STC3115 : public STC3115I2CCore {
 public:
+
     STC3115(uint8_t address = 0x70);
     virtual ~STC3115();
 

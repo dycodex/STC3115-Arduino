@@ -7,7 +7,7 @@
 class STC3115I2CCore {
 public:
     STC3115I2CCore(uint8_t address = 0x70);
-    ~STC3115I2CCore();
+    virtual ~STC3115I2CCore();
 
     bool beginI2C();
     bool readRegister(uint8_t* output, uint8_t reg);
