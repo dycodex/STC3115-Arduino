@@ -30,6 +30,9 @@ public:
     int getChipID();
     int getStatus();
 
+    void enableDebugging(Stream* stream = NULL);
+    void disableDebugging();
+
     STC3115ConfigData config;
 protected:
     void initConfig();
@@ -44,6 +47,9 @@ protected:
 
     STC3115BatteryData batteryData;
     STC3115RAMData ramData;
+
+    bool debugEnabled;
+    Stream* debugStream;
 };
 
 #endif

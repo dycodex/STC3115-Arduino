@@ -1,13 +1,18 @@
 #include "STC3115.h"
 #include <Arduino.h>
 
+#define STC3115_DEBUG_PRINT(...) if (debugEnabled && debugStream != NULL) {  debugStream->print(__VA_ARGS__); }
+#define STC3115_DEBUG_PRINTLN(...) if (debugEnabled && debugStream != NULL) { debugStream->println(__VA_ARGS__); }
+
 /**
  * @brief Initialize STC3115 I2C driver with given address
  *
  * @param address
  */
-STC3115::STC3115(uint8_t address): STC3115I2CCore(address) {
-}
+STC3115::STC3115(uint8_t address):
+ STC3115I2CCore(address),
+ debugEnabled(0),
+ debugStream(0) {}
 
 STC3115::~STC3115() {}
 
@@ -26,6 +31,8 @@ bool STC3115::begin() {
 
     if (ramData.reg.TestWord != RAM_TESTWORD || calculateCRC8RAM(ramData.db, STC3115_RAM_SIZE) != 0) {
         // handle invalid RAM data
+        STC3115_DEBUG_PRINTLN("Invalid RAM data");
+
         initRAM();
         retval = startup();
     } else {
@@ -33,8 +40,10 @@ bool STC3115::begin() {
         readRegister(&data, STC3115_REG_CTRL);
 
         if (data & (STC3115_BATFAIL | STC3115_PORDET) != 0) {
+            STC3115_DEBUG_PRINTLN("Fresh start up");
             retval = startup();
         } else {
+            STC3115_DEBUG_PRINTLN("Restore from RAM");
             retval = restore();
         }
     }
@@ -172,7 +181,11 @@ int STC3115::getStatus() {
     int value = 0;
     uint8_t data[2] = {0};
 
-    if (getChipID() != STC3115_ID) {
+    int chipId = getChipID();
+    STC3115_DEBUG_PRINT("Chip ID: ");
+    STC3115_DEBUG_PRINTLN(chipId);
+
+    if (chipId != STC3115_ID) {
         return -1;
     }
 
@@ -307,4 +320,14 @@ float STC3115::getCurrent() {
     }
 
     return static_cast<float>(current);
+}
+
+void STC3115::enableDebugging(Stream* stream) {
+    this->debugStream = stream;
+    this->debugEnabled = true;
+}
+
+void STC3115::disableDebugging() {
+    this->debugEnabled = false;
+    this->debugStream = NULL;
 }
