@@ -13,7 +13,7 @@
 #define ALM_EN 0
 #define ALM_SOC 10
 #define ALM_VBAT 3600
-#define RSENSE 10
+#define RSENSE 50
 #define APP_EOC_CURRENT 75
 #define APP_CUTOFF_VOLTAGE 3000
 

@@ -23,14 +23,13 @@ STC3115::~STC3115() {}
  * @return false when STC3115 is failed to be configured
  */
 bool STC3115::begin() {
+    beginI2C();
+
     bool retval = true;
+
     initConfig();
-
-    // TODO: handle read RAM data failure
     readRAMData();
-
     if (ramData.reg.TestWord != RAM_TESTWORD || calculateCRC8RAM(ramData.db, STC3115_RAM_SIZE) != 0) {
-        // handle invalid RAM data
         STC3115_DEBUG_PRINTLN("Invalid RAM data");
 
         initRAM();
@@ -39,13 +38,15 @@ bool STC3115::begin() {
         uint8_t data;
         readRegister(&data, STC3115_REG_CTRL);
 
-        if (data & (STC3115_BATFAIL | STC3115_PORDET) != 0) {
-            STC3115_DEBUG_PRINTLN("Fresh start up");
-            retval = startup();
-        } else {
-            STC3115_DEBUG_PRINTLN("Restore from RAM");
-            retval = restore();
-        }
+        retval = startup();
+
+        // if ((data & (STC3115_BATFAIL | STC3115_PORDET)) != 0) {
+        //     STC3115_DEBUG_PRINTLN("Fresh start up");
+        //     retval = startup();
+        // } else {
+        //     STC3115_DEBUG_PRINTLN("Restore from RAM");
+        //     retval = restore();
+        // }
     }
 
     ramData.reg.State = STC3115_INIT;
@@ -62,7 +63,9 @@ bool STC3115::begin() {
  */
 int STC3115::getChipID() {
     uint8_t res = 0;
-    readRegister(&res, STC3115_REG_ID);
+    bool readResult = readRegister(&res, STC3115_REG_ID);
+    STC3115_DEBUG_PRINT("[DBG] CHIP ID READ RESULT: ");
+    STC3115_DEBUG_PRINTLN(readResult);
 
     return static_cast<int>(res);
 }
@@ -183,7 +186,7 @@ int STC3115::getStatus() {
 
     int chipId = getChipID();
     STC3115_DEBUG_PRINT("Chip ID: ");
-    STC3115_DEBUG_PRINTLN(chipId);
+    STC3115_DEBUG_PRINTLN(chipId, HEX);
 
     if (chipId != STC3115_ID) {
         return -1;
@@ -286,9 +289,7 @@ bool STC3115::restore() {
  * @return int8_t
  */
 int STC3115::getTemperature() {
-    if (batteryData.Temperature == 0) {
-        readBatteryData();
-    }
+    readBatteryData();
 
     return batteryData.Temperature;
 }
@@ -299,9 +300,7 @@ int STC3115::getTemperature() {
  * @return float
  */
 int STC3115::getVoltage() {
-   if (batteryData.Voltage == 0) {
-        readBatteryData();
-    }
+    readBatteryData();
 
     return batteryData.Voltage;
 }
@@ -312,9 +311,7 @@ int STC3115::getVoltage() {
  * @return float
  */
 int STC3115::getCurrent() {
-    if (batteryData.Current == 0) {
-        readBatteryData();
-    }
+    readBatteryData();
 
     return batteryData.Current;
 }
@@ -347,6 +344,8 @@ bool STC3115::readBatteryData() {
 
     retVal = readRegisterRegion(data, 0, 16);
     if (!retVal) {
+        STC3115_DEBUG_PRINT("[FAIL]: Return value: ");
+        STC3115_DEBUG_PRINTLN(retVal);
         return retVal;
     }
 
@@ -354,10 +353,14 @@ bool STC3115::readBatteryData() {
     value = (value << 8) + data[2];
     batteryData.HRSOC = value;
     batteryData.SOC = (value * 10 + 256) / 512;
+    STC3115_DEBUG_PRINT("[DBG] SOC: ");
+    STC3115_DEBUG_PRINTLN(batteryData.SOC);
 
     value = data[5];
     value = (value << 8) + data[4];
     batteryData.ConvCounter = value;
+    STC3115_DEBUG_PRINT("[DBG] ConvCounter: ");
+    STC3115_DEBUG_PRINTLN(batteryData.ConvCounter);
 
     value = data[7];
     value = (value << 8) + data[6];
@@ -365,6 +368,8 @@ bool STC3115::readBatteryData() {
         value = value - 0x4000;
     }
     batteryData.Current = convert(value, CurrentFactor / RSENSE);
+    STC3115_DEBUG_PRINT("[DBG] Current: ");
+    STC3115_DEBUG_PRINTLN(batteryData.Current);
 
     value = data[9];
     value = (value << 8) + data[8];
@@ -372,12 +377,16 @@ bool STC3115::readBatteryData() {
         value = value - 0x1000;
     }
     batteryData.Voltage = convert(value, VoltageFactor);
+    STC3115_DEBUG_PRINT("[DBG] Voltage: ");
+    STC3115_DEBUG_PRINTLN(batteryData.Voltage);
 
     value = data[10];
     if (value >= 0x80) {
         value = value - 0x100;
     }
     batteryData.Temperature = value * 10;
+    STC3115_DEBUG_PRINT("[DBG] Temperature: ");
+    STC3115_DEBUG_PRINTLN(batteryData.Temperature);
 
     value = data[14];
     value = (value << 8) | data[13];
@@ -388,6 +397,8 @@ bool STC3115::readBatteryData() {
     value = convert(value, VoltageFactor);
     value = (value + 2) / 4;
     batteryData.OCV = value;
+    STC3115_DEBUG_PRINT("[DBG] OCV: ");
+    STC3115_DEBUG_PRINTLN(batteryData.OCV);
 
     return true;
 }
