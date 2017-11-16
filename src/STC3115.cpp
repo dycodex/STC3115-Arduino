@@ -17,17 +17,19 @@ STC3115::STC3115(uint8_t address):
 STC3115::~STC3115() {}
 
 /**
- * @brief Configure STC3115
+ * @brief Initialize the STC3115 Gas Gauge chip.
  *
- * @return true when the STC3115 is configured successfully
- * @return false when STC3115 is failed to be configured
+ * @param battCapacity maximum battery capacity
+ * @param rSense RSENSE value
+ * @return true if the gauge is initialized.
+ * @return false if the gauge initialization is failed.
  */
-bool STC3115::begin() {
+bool STC3115::begin(int battCapacity, int rSense) {
     beginI2C();
 
     bool retval = true;
 
-    initConfig();
+    initConfig(battCapacity, rSense);
     readRAMData();
     if (ramData.reg.TestWord != RAM_TESTWORD || calculateCRC8RAM(ramData.db, STC3115_RAM_SIZE) != 0) {
         STC3115_DEBUG_PRINTLN("Invalid RAM data");
@@ -38,15 +40,13 @@ bool STC3115::begin() {
         uint8_t data;
         readRegister(&data, STC3115_REG_CTRL);
 
-        retval = startup();
-
-        // if ((data & (STC3115_BATFAIL | STC3115_PORDET)) != 0) {
-        //     STC3115_DEBUG_PRINTLN("Fresh start up");
-        //     retval = startup();
-        // } else {
-        //     STC3115_DEBUG_PRINTLN("Restore from RAM");
-        //     retval = restore();
-        // }
+        if ((data & (STC3115_BATFAIL | STC3115_PORDET)) != 0) {
+            STC3115_DEBUG_PRINTLN("Fresh start up");
+            retval = startup();
+        } else {
+            STC3115_DEBUG_PRINTLN("Restore from RAM");
+            retval = restore();
+        }
     }
 
     ramData.reg.State = STC3115_INIT;
@@ -147,28 +147,28 @@ bool STC3115::writeRAMData() {
  * @brief Initialize STC3115 config default values
  *
  */
-void STC3115::initConfig() {
+void STC3115::initConfig(int battCapacity, int rSense) {
     config.VMode = VMODE;
-    if (RSENSE != 0) {
-        config.RSense = RSENSE;
+    if (rSense != 0) {
+        config.RSense = rSense;
     } else {
         config.RSense = 10;
     }
 
-    config.CCConf = (BATT_CAPACITY * config.RSense * 250 + 6194) / 12389;
+    config.CCConf = (battCapacity * config.RSense * 250 + 6194) / 12389;
 
     if (BATT_RINT != 0) {
-        config.VMConf = (BATT_CAPACITY * BATT_RINT * 50 + 24444) / 48889;
+        config.VMConf = (battCapacity * BATT_RINT * 50 + 24444) / 48889;
     } else {
-        config.VMConf = (BATT_CAPACITY * 200 * 50 + 24444) / 488889;
+        config.VMConf = (battCapacity * 200 * 50 + 24444) / 488889;
     }
 
     for (int i = 0; i < 16; i++) {
        config.OCVOffset[i] = 0;
     }
 
-    config.CNom = BATT_CAPACITY;
-    config.RelaxCurrent = BATT_CAPACITY / 20;
+    config.CNom = battCapacity;
+    config.RelaxCurrent = battCapacity / 20;
     config.AlmSOC = ALM_SOC;
     config.AlmVbat = ALM_VBAT;
 
@@ -289,8 +289,6 @@ bool STC3115::restore() {
  * @return int8_t
  */
 int STC3115::getTemperature() {
-    readBatteryData();
-
     return batteryData.Temperature;
 }
 
@@ -300,8 +298,6 @@ int STC3115::getTemperature() {
  * @return float
  */
 int STC3115::getVoltage() {
-    readBatteryData();
-
     return batteryData.Voltage;
 }
 
@@ -311,9 +307,34 @@ int STC3115::getVoltage() {
  * @return float
  */
 int STC3115::getCurrent() {
-    readBatteryData();
-
     return batteryData.Current;
+}
+
+/**
+ * @brief Get SOC of the battery
+ *
+ * @return int
+ */
+int STC3115::getSOC() {
+    return batteryData.SOC;
+}
+
+/**
+ * @brief Get the remaining capacity in mAh unit
+ *
+ * @return int
+ */
+int STC3115::getChargeValue() {
+    return batteryData.ChargeValue;
+}
+
+/**
+ * @brief Get OCV of the battery.
+ *
+ * @return int
+ */
+int STC3115::getOCV() {
+    return batteryData.OCV;
 }
 
 /**
@@ -364,15 +385,17 @@ bool STC3115::readBatteryData() {
 
     value = data[7];
     value = (value << 8) + data[6];
+    value = value & 0x3fff;
     if (value >= 0x2000) {
         value = value - 0x4000;
     }
-    batteryData.Current = convert(value, CurrentFactor / RSENSE);
+    batteryData.Current = convert(value, CurrentFactor / config.RSense);
     STC3115_DEBUG_PRINT("[DBG] Current: ");
     STC3115_DEBUG_PRINTLN(batteryData.Current);
 
     value = data[9];
     value = (value << 8) + data[8];
+    value = value & 0x0fff;
     if (value >= 0x0800) {
         value = value - 0x1000;
     }
@@ -415,6 +438,194 @@ int STC3115::convert(short value, unsigned short factor) {
     v = (v + 1) / 2;
 
     return v;
+}
+
+/**
+ * @brief Reset gauge.
+ *
+ * @return true
+ * @return false
+ */
+bool STC3115::reset() {
+    bool result;
+    ramData.reg.TestWord = 0;
+    ramData.reg.State = STC3115_UNINIT;
+
+    result = writeRAMData();
+    if (!result) {
+        STC3115_DEBUG_PRINTLN("[FAIL] Failed to write RAM data before reset");
+        return false;
+    }
+
+    result = writeRegister(STC3115_REG_CTRL, STC3115_PORDET);
+    return result;
+}
+
+/**
+ * @brief Power down the gauge.
+ *
+ * @return true
+ * @return false
+ */
+bool STC3115::powerDown() {
+    writeRegister(STC3115_REG_CTRL, 0x01);
+    return writeRegister(STC3115_REG_MODE, 0);
+}
+
+/**
+ * @brief Store last reading data to RAM and then stop the gauge.
+ *
+ * @return true
+ * @return false
+ */
+bool STC3115::stop() {
+    readRAMData();
+    ramData.reg.State = STC3115_POWERDN;
+
+    updateRAMCRC8();
+    writeRAMData();
+
+    return powerDown();
+}
+
+/**
+ * @brief Gradually update battery status on the internal structure & RAM. This function should be called inside loop.
+ *
+ */
+void STC3115::run() {
+    int status = getStatus();
+    if (status < 0) {
+        return;
+    }
+
+    batteryData.StatusWord = status;
+
+    readRAMData();
+    if ((ramData.reg.TestWord != RAM_TESTWORD) || calculateCRC8RAM(ramData.db, STC3115_RAM_SIZE) != 0) {
+        initRAM();
+        ramData.reg.State = STC3115_INIT;
+    }
+
+    if ((batteryData.StatusWord & (static_cast<int>(STC3115_BATFAIL) << 8)) != 0) {
+        batteryData.Presence = 0;
+        reset();
+
+        return;
+    }
+
+    if ((batteryData.StatusWord & STC3115_GG_RUN) == 0) {
+        if (ramData.reg.State == STC3115_RUNNING || ramData.reg.State == STC3115_POWERDN) {
+            restore();
+        } else {
+            startup();
+        }
+
+        ramData.reg.State = STC3115_INIT;
+    }
+
+    if (!readBatteryData()) {
+        return;
+    }
+
+    if (ramData.reg.State == STC3115_INIT) {
+        if (batteryData.ConvCounter > VCOUNT) {
+            ramData.reg.State = STC3115_RUNNING;
+            batteryData.Presence = 1;
+        }
+    }
+
+    if (ramData.reg.State != STC3115_RUNNING) {
+        batteryData.ChargeValue = config.CNom * batteryData.SOC / MAX_SOC;
+        batteryData.Current = 0;
+        batteryData.Temperature = 250;
+        batteryData.RemTime = -1;
+    } else {
+        if (batteryData.Voltage < APP_CUTOFF_VOLTAGE) {
+            batteryData.SOC = 0;
+        } else if (batteryData.Voltage < (APP_CUTOFF_VOLTAGE + VOLTAGE_SECURITY_RANGE)) {
+            batteryData.SOC = batteryData.SOC * (batteryData.Voltage - APP_CUTOFF_VOLTAGE) / VOLTAGE_SECURITY_RANGE;
+        }
+
+        batteryData.ChargeValue = config.CNom * batteryData.SOC / MAX_SOC;
+        if ((batteryData.StatusWord & STC3115_VMODE) == 0) {
+            if ((batteryData.StatusWord & STC3115_VMODE) == 0) {
+                if (batteryData.Current > APP_EOC_CURRENT && batteryData.SOC > 990) {
+                    batteryData.SOC = 990;
+                    writeRegisterInt(STC3115_REG_SOC_L, 50688);
+                }
+            }
+
+            if (batteryData.Current < 0) {
+                batteryData.RemTime = (batteryData.RemTime * 4 + batteryData.ChargeValue / batteryData.Current * 60) / 5;
+                if (batteryData.RemTime < 0) {
+                    batteryData.RemTime = -1;
+                }
+            } else {
+                batteryData.RemTime = -1;
+            }
+        } else {
+            batteryData.Current = 0;
+            batteryData.RemTime = -1;
+        }
+
+        if (batteryData.SOC > 1000) {
+            batteryData.SOC = MAX_SOC;
+        }
+
+        if (batteryData.SOC < 0) {
+            batteryData.SOC = 0;
+        }
+    }
+
+    ramData.reg.HRSOC = batteryData.HRSOC;
+    ramData.reg.SOC = (batteryData.SOC + 5) / 10;
+    updateRAMCRC8();
+    writeRAMData();
+
+    if (ramData.reg.State == STC3115_RUNNING) {
+        return;
+    }
+}
+
+/**
+ * @brief Start power saving mode.
+ *
+ * @return true
+ * @return false
+ */
+bool STC3115::startPowerSavingMode() {
+    uint8_t mode = 0;
+    readRegister(&mode, STC3115_REG_MODE);
+
+    return writeRegister(STC3115_REG_MODE, (mode | STC3115_VMODE));
+}
+
+
+/**
+ * @brief Stop power saving mode
+ *
+ * @return true
+ * @return false
+ */
+bool STC3115::stopPowerSavingMode() {
+    uint8_t mode = 0;
+    readRegister(&mode, STC3115_REG_MODE);
+
+    if (VMODE != MIXED_MODE) {
+        return false;
+    }
+
+    return writeRegister(STC3115_REG_MODE, (mode & ~STC3115_VMODE));
+}
+
+/**
+ * @brief Check whether the battery is detected or not.
+ *
+ * @return true if the battery is detected
+ * @return false otherwise
+ */
+bool STC3115::isBatteryDetected() {
+    return batteryData.Presence == 1;
 }
 
 void STC3115::enableDebugging(Stream* stream) {
