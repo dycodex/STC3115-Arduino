@@ -222,12 +222,16 @@ void STC3115::setParamAndRun() {
         writeRegister(STC3115_REG_CURRENT_THRES, static_cast<uint8_t>(value));
     }
 
-    if (ramData.reg.CCConf != 0) {
-        writeRegisterInt(STC3115_REG_CC_CNF_L, ramData.reg.CCConf);
+    if (config.CCConf != 0) {
+        writeRegisterInt(STC3115_REG_CC_CNF_L, config.CCConf);
+    } else {
+        writeRegisterInt(STC3115_REG_CC_CNF_L, 395);
     }
 
-    if (ramData.reg.VMConf != 0) {
-        writeRegisterInt(STC3115_REG_VM_CNF_L, ramData.reg.VMConf);
+    if (config.VMConf != 0) {
+        writeRegisterInt(STC3115_REG_VM_CNF_L, config.VMConf);
+    } else {
+        writeRegisterInt(STC3115_REG_VM_CNF_L, 321);
     }
 
     writeRegister(STC3115_REG_CTRL, 0x03);
