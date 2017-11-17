@@ -160,7 +160,7 @@ void STC3115::initConfig(int battCapacity, int rSense) {
     if (BATT_RINT != 0) {
         config.VMConf = (battCapacity * BATT_RINT * 50 + 24444) / 48889;
     } else {
-        config.VMConf = (battCapacity * 200 * 50 + 24444) / 488889;
+        config.VMConf = (battCapacity * 200 * 50 + 24444) / 48889;
     }
 
     for (int i = 0; i < 16; i++) {
@@ -284,12 +284,12 @@ bool STC3115::restore() {
 }
 
 /**
- * @brief Get temperature of the battery
+ * @brief Get temperature of the battery. Temperature unit is celcius.
  *
- * @return int8_t
+ * @return int
  */
 int STC3115::getTemperature() {
-    return batteryData.Temperature;
+    return batteryData.Temperature / 10;
 }
 
 /**
@@ -352,6 +352,10 @@ int STC3115::getRunningCounter() {
 }
 
 
+int STC3115::getRemainingTime() {
+    return batteryData.RemTime;
+}
+
 /**
  * @brief Read battery measurement data in one go.
  *
@@ -389,6 +393,7 @@ bool STC3115::readBatteryData() {
     if (value >= 0x2000) {
         value = value - 0x4000;
     }
+
     batteryData.Current = convert(value, CurrentFactor / config.RSense);
     STC3115_DEBUG_PRINT("[DBG] Current: ");
     STC3115_DEBUG_PRINTLN(batteryData.Current);
