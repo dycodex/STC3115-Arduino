@@ -299,16 +299,27 @@ int STC3115::getTemperature() {
  *
  * @return float
  */
-int STC3115::getVoltage() {
+float STC3115::getVoltage() {
     readBatteryData();
 
-    return batteryData.Voltage;
+    return (batteryData.Voltage * 1.0f/1000);
+}
+
+/**
+ * @brief Get battery state of charge
+ *
+ * @return int
+ */
+int STC3115::getSoC() {
+	readBatteryData();
+
+	return batteryData.SOC;
 }
 
 /**
  * @brief Get battery current
  *
- * @return float
+ * @return int
  */
 int STC3115::getCurrent() {
     readBatteryData();

@@ -25,8 +25,10 @@ public:
 
     bool begin();
     int getTemperature();
-    int getVoltage();
+    float getVoltage();
+    int getSoC();
     int getCurrent();
+
     int getChipID();
     int getStatus();
 
