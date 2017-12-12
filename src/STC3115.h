@@ -7,7 +7,7 @@
 #include "STC3115_registers.h"
 #include "STC3115I2CCore.h"
 
-#define BATT_CAPACITY 1500
+#define BATT_CAPACITY 610
 #define BATT_RINT 200
 #define VMODE MIXED_MODE
 #define ALM_EN 0
@@ -23,12 +23,15 @@ public:
     STC3115(uint8_t address = 0x70);
     virtual ~STC3115();
 
-    bool begin();
+    bool begin(int batteryCapacity = BATT_CAPACITY, int rSense = RSENSE);
     int getTemperature();
     float getVoltage();
     int getSoC();
+    float getSoCPercent();
     int getCurrent();
-
+    int getChargeValue();
+    int getOCV();
+    int getRemainingTime();
     int getChipID();
     int getStatus();
 
@@ -39,9 +42,19 @@ public:
     bool readBatteryData();
     static int convert(short value, unsigned short factor);
 
+    bool reset();
+    bool stop();
+    bool powerDown();
+
+    void run();
+    bool startPowerSavingMode();
+    bool stopPowerSavingMode();
+
+    bool isBatteryDetected();
+
     STC3115ConfigData config;
 protected:
-    void initConfig();
+    void initConfig(int battCapacity, int rSense);
     int calculateCRC8RAM(uint8_t* data, size_t length);
     void initRAM();
     bool readRAMData();
