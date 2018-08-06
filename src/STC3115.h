@@ -25,13 +25,13 @@ public:
 
     bool begin(int batteryCapacity = BATT_CAPACITY, int rSense = RSENSE);
     int getTemperature();
-    int getVoltage();
+    float getVoltage();
+    int getSoC();
+    float getSoCPercent();
     int getCurrent();
     int getChargeValue();
-    int getSOC();
     int getOCV();
     int getRemainingTime();
-
     int getChipID();
     int getStatus();
 
