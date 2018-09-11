@@ -19,14 +19,17 @@ STC3115I2CCore::~STC3115I2CCore() {
  * @return false
  */
 bool STC3115I2CCore::beginI2C() {
-    Wire.begin();
+//    Wire.begin();
 
-    bool result = true;
+    //bool result = true;
     Wire.beginTransmission(address);
 
-    result = Wire.endTransmission() == 0;
+    //result = Wire.endTransmission() == 0;
+    //return result;
 
-    return result;
+    uint8_t result = Wire.endTransmission(false);
+
+    return (result == 7);
 }
 
 /**
