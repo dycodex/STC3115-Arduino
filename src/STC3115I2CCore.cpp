@@ -19,17 +19,12 @@ STC3115I2CCore::~STC3115I2CCore() {
  * @return false
  */
 bool STC3115I2CCore::beginI2C() {
-//    Wire.begin();
-
-    //bool result = true;
+    bool result = true;
     Wire.beginTransmission(address);
 
-    //result = Wire.endTransmission() == 0;
-    //return result;
+    result = Wire.endTransmission() == 0;
 
-    uint8_t result = Wire.endTransmission(false);
-
-    return (result == 7);
+    return result;
 }
 
 /**
@@ -80,13 +75,21 @@ bool STC3115I2CCore::readRegisterRegion(uint8_t* output, uint8_t reg, uint8_t le
     if (Wire.endTransmission() != 0) {
         returnValue = false;
     } else {
-        Wire.requestFrom(address, length);
-        while (Wire.available() && (counter < length)) {
-            temp = Wire.read();
-            *output = temp;
-            output++;
-            counter++;
-        }
+        int readLength = 0;
+        int readTimeout = 300;
+        unsigned long start = millis();
+        do {
+            readLength = Wire.requestFrom(address, length);
+            if (readLength == length) {
+                for (int i = 0; i < readLength; i++) {
+                    temp = Wire.read();
+                    *output = temp;
+                    output++;
+                }
+
+                break;
+            }
+        } while (millis() - start >= readTimeout);
     }
 
     return returnValue;
